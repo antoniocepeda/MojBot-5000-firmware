@@ -1,22 +1,21 @@
 # MojBot Firmware Repo Direction
 
-This repo is in the middle of an intentional identity cleanup.
+This repo is in the middle of an intentional identity and scope cleanup.
+
+## Current confirmed target
+
+The robot currently connected to the Mac Mini is configured as:
+
+- `CONFIG_BOARD_TYPE_ESP_HI=y`
+
+So the current firmware cleanup is centered on **ESP-HI as the active MojBot hardware target**.
 
 ## What changed
 
 - firmware is now separated into `MojBot-5000-firmware`
 - runtime service moved to `MojBot-5000-runtime`
 - website/product work lives in `MojBot-5000`
-
-## What still needs cleanup
-
-A lot of source structure and supporting docs still reflect the earlier upstream-derived codebase.
-That means this repo still contains:
-
-- references to older project names
-- documentation for unrelated boards and flows
-- legacy naming in scripts/build outputs
-- broad upstream scope that exceeds MojBot's actual product needs
+- unrelated board directories have been removed from this repo's current working copy so the project reflects the actual robot we have in hand
 
 ## Cleanup priorities
 
@@ -28,5 +27,5 @@ That means this repo still contains:
 
 ## Rule of thumb
 
-If a file helps ship the MojBot robot dog, keep it.
-If it only reflects old upstream breadth, evaluate it for removal later.
+If a file helps ship the MojBot robot dog on the confirmed hardware target, keep it.
+If it only reflects old upstream breadth, remove or quarantine it.
