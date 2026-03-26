@@ -126,11 +126,24 @@ void Application::Initialize() {
                 display->ShowNotification(msg.c_str(), 30000);
                 xEventGroupSetBits(event_group_, MAIN_EVENT_NETWORK_CONNECTED);
 
-                display->ShowNotification(Lang::Strings::NEXT_STEP, 30000);
-                Schedule([this, display]() {
-                    Alert(Lang::Strings::INFO, Lang::Strings::NEXT_STEP, "globe", Lang::Sounds::OGG_WELCOME);
-                    display->ShowNotification(Lang::Strings::ENTER_CODE_AND_NAME, 30000);
-                });
+                auto existing_config = RobotConfig::Load();
+                if (RobotConfig::IsConfigured(existing_config)) {
+                    std::string ready_message = existing_config.kid_name.empty()
+                        ? std::string("Ready")
+                        : std::string("Hi, ") + existing_config.kid_name + "!";
+                    Schedule([this, display, ready_message = std::move(ready_message)]() {
+                        display->SetChatMessage("system", "");
+                        display->SetStatus(ready_message.c_str());
+                        display->SetEmotion("neutral");
+                        display->ShowNotification(ready_message.c_str(), 30000);
+                    });
+                } else {
+                    display->ShowNotification(Lang::Strings::NEXT_STEP, 30000);
+                    Schedule([this, display]() {
+                        Alert(Lang::Strings::INFO, Lang::Strings::NEXT_STEP, "globe", Lang::Sounds::OGG_WELCOME);
+                        display->ShowNotification(Lang::Strings::ENTER_CODE_AND_NAME, 30000);
+                    });
+                }
                 break;
             }
             case NetworkEvent::Disconnected:
@@ -333,7 +346,13 @@ void Application::SyncRobotConfig() {
                     if (!first_movement.empty()) {
                         summary += " • move: " + first_movement;
                     }
+
+                    // Config fetched successfully: clear stale onboarding/activation UI and present the bot as configured.
+                    display->SetChatMessage("system", "");
+                    display->SetStatus(message.c_str());
+                    display->SetEmotion("neutral");
                     display->ShowNotification(summary.c_str(), 30000);
+
                     if (changed) {
                         Alert(Lang::Strings::INFO, summary.c_str(), "sparkles", Lang::Sounds::OGG_SUCCESS);
                     }
@@ -506,6 +525,15 @@ void Application::CheckNewVersion() {
 
         // No new version, mark the current version as valid
         ota_->MarkCurrentVersionValid();
+
+        RobotConfigData initial_robot_config;
+        bool has_robot_config = RobotConfig::FetchAndStore(&initial_robot_config, nullptr);
+        if (has_robot_config && RobotConfig::IsConfigured(initial_robot_config)) {
+            ESP_LOGI(TAG, "Robot already configured via robot config (kid_name=%s, version=%d), skipping activation flow",
+                initial_robot_config.kid_name.c_str(), initial_robot_config.config_version);
+            break;
+        }
+
         if (!ota_->HasActivationCode() && !ota_->HasActivationChallenge()) {
             // Exit the loop if done checking new version
             break;
@@ -675,6 +703,21 @@ void Application::InitializeProtocol() {
 }
 
 void Application::ShowActivationCode(const std::string& code, const std::string& message) {
+    auto existing_config = RobotConfig::Load();
+    if (RobotConfig::IsConfigured(existing_config)) {
+        ESP_LOGI(TAG, "Suppressing activation UI because robot is already configured (kid_name=%s, version=%d)",
+            existing_config.kid_name.c_str(), existing_config.config_version);
+        auto display = Board::GetInstance().GetDisplay();
+        std::string configured_message = existing_config.kid_name.empty()
+            ? std::string("Configured")
+            : std::string("Hi, ") + existing_config.kid_name + "!";
+        display->SetChatMessage("system", "");
+        display->SetStatus(configured_message.c_str());
+        display->SetEmotion("neutral");
+        display->ShowNotification(configured_message.c_str(), 30000);
+        return;
+    }
+
     struct digit_sound {
         char digit;
         const std::string_view& sound;

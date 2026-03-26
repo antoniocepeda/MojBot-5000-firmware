@@ -203,6 +203,10 @@ RobotConfigData RobotConfig::Load() {
     return ReadConfigFromSettings();
 }
 
+bool RobotConfig::IsConfigured(const RobotConfigData& config) {
+    return !config.kid_name.empty() || config.config_version > 0;
+}
+
 bool RobotConfig::FetchAndStore(RobotConfigData* out_config, bool* changed) {
     auto& board = Board::GetInstance();
     auto network = board.GetNetwork();
@@ -214,7 +218,7 @@ bool RobotConfig::FetchAndStore(RobotConfigData* out_config, bool* changed) {
     auto previous = ReadConfigFromSettings();
     auto http = network->CreateHttp(0);
     auto mac = SystemInfo::GetMacAddress();
-    auto url = GetConfigUrl() + "?mac=" + mac;
+    auto url = GetConfigUrl();
 
     http->SetHeader("Device-Id", mac.c_str());
     http->SetHeader("Client-Id", board.GetUuid().c_str());

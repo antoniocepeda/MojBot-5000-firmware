@@ -33,6 +33,7 @@ public:
     static std::string GetConfigUrl();
     static RobotConfigData Load();
     static bool FetchAndStore(RobotConfigData* out_config = nullptr, bool* changed = nullptr);
+    static bool IsConfigured(const RobotConfigData& config);
 };
 
 #endif // ROBOT_CONFIG_H
