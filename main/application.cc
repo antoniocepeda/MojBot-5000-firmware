@@ -337,7 +337,7 @@ void Application::SyncRobotConfig() {
                 auto message = std::string("Hi, ") + config.kid_name + "!";
                 auto first_voice_line = config.voice_lines.empty() ? std::string() : config.voice_lines.front().text;
                 auto first_movement = config.movements.empty() ? std::string() : config.movements.front().name;
-                Schedule([this, message = std::move(message), first_voice_line = std::move(first_voice_line), first_movement = std::move(first_movement), changed]() {
+                Schedule([this, message = std::move(message), first_voice_line = std::move(first_voice_line), first_movement = std::move(first_movement), changed, config]() {
                     auto display = Board::GetInstance().GetDisplay();
                     std::string summary = message;
                     if (!first_voice_line.empty()) {
@@ -353,8 +353,11 @@ void Application::SyncRobotConfig() {
                     display->SetEmotion("neutral");
                     display->ShowNotification(summary.c_str(), 30000);
 
-                    if (changed) {
-                        Alert(Lang::Strings::INFO, summary.c_str(), "sparkles", Lang::Sounds::OGG_SUCCESS);
+                    // Always play a clear success cue when a named robot config is loaded so boot feels intentional.
+                    Alert(Lang::Strings::INFO, summary.c_str(), "sparkles", Lang::Sounds::OGG_SUCCESS);
+
+                    if (!boot_greeting_sent_ && !config.kid_name.empty()) {
+                        EnsureBootGreetingSession(config.kid_name);
                     }
                 });
             }
@@ -1172,6 +1175,51 @@ bool Application::CanEnterSleepMode() {
 
     // Now it is safe to enter sleep mode
     return true;
+}
+
+void Application::EnsureBootGreetingSession(const std::string& kid_name) {
+    Schedule([this, kid_name]() {
+        if (boot_greeting_sent_) {
+            return;
+        }
+
+        pending_boot_greeting_kid_name_ = kid_name;
+
+        if (!protocol_) {
+            ESP_LOGW(TAG, "Cannot send boot greeting: protocol not initialized");
+            return;
+        }
+
+        if (protocol_->IsAudioChannelOpened()) {
+            std::string payload = "{\"event\":\"post_config_greeting\",\"kidName\":\"" + kid_name + "\"}";
+            ESP_LOGI(TAG, "Sending post_config_greeting for kid_name=%s on existing session", kid_name.c_str());
+            SendMcpMessage(payload);
+            boot_greeting_sent_ = true;
+            boot_greeting_connecting_ = false;
+            pending_boot_greeting_kid_name_.clear();
+            return;
+        }
+
+        if (boot_greeting_connecting_) {
+            ESP_LOGI(TAG, "Boot greeting session already opening for kid_name=%s", kid_name.c_str());
+            return;
+        }
+
+        ESP_LOGI(TAG, "Opening audio channel for boot greeting kid_name=%s", kid_name.c_str());
+        boot_greeting_connecting_ = true;
+        if (!protocol_->OpenAudioChannel()) {
+            ESP_LOGE(TAG, "Failed to open audio channel for boot greeting");
+            boot_greeting_connecting_ = false;
+            return;
+        }
+
+        std::string payload = "{\"event\":\"post_config_greeting\",\"kidName\":\"" + kid_name + "\"}";
+        ESP_LOGI(TAG, "Sending post_config_greeting for kid_name=%s after opening session", kid_name.c_str());
+        SendMcpMessage(payload);
+        boot_greeting_sent_ = true;
+        boot_greeting_connecting_ = false;
+        pending_boot_greeting_kid_name_.clear();
+    });
 }
 
 void Application::SendMcpMessage(const std::string& payload) {

@@ -146,6 +146,9 @@ private:
     TaskHandle_t robot_config_task_handle_ = nullptr;
     int last_robot_config_version_ = -1;
     std::string last_robot_config_updated_at_;
+    bool boot_greeting_sent_ = false;
+    bool boot_greeting_connecting_ = false;
+    std::string pending_boot_greeting_kid_name_;
 
     // Event handlers
     void HandleStateChangedEvent();
@@ -159,6 +162,7 @@ private:
     void HandleWakeWordDetectedEvent();
     void ContinueOpenAudioChannel(ListeningMode mode);
     void ContinueWakeWordInvoke(const std::string& wake_word);
+    void EnsureBootGreetingSession(const std::string& kid_name);
 
     // Activation task (runs in background)
     void ActivationTask();
